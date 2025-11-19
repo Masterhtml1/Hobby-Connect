@@ -1,4 +1,4 @@
-// Main Application JavaScript
+// Main Application JavaScript - FIXED VERSION
 // HobbyConnect - Real-time social platform for hobby enthusiasts
 
 // Global state
@@ -6,6 +6,7 @@ let currentUser = null;
 let allUsers = [];
 let allPosts = [];
 let selectedHobbies = new Set();
+let unsubscribePosts = null; // Store unsubscribe function
 
 // Available hobbies
 const hobbies = [
@@ -30,23 +31,71 @@ const hobbies = [
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
+    
+    // Failsafe: Hide loading screen after 10 seconds no matter what
+    setTimeout(() => {
+        const loadingScreen = document.getElementById('loadingScreen');
+        if (loadingScreen && !loadingScreen.classList.contains('hidden')) {
+            console.warn('Loading screen timeout - forcing hide');
+            hideLoading();
+            
+            // If still no user, show auth
+            if (!currentUser) {
+                showAuth();
+            }
+        }
+    }, 10000);
 });
 
 async function initializeApp() {
+    // Check if Firebase is loaded
+    if (!window.firebaseServices || !window.firebaseServices.auth) {
+        console.error('Firebase not initialized properly');
+        showToast('Firebase configuration error. Please check config.js', 'error');
+        hideLoading();
+        showAuth();
+        return;
+    }
+    
     const { auth } = window.firebaseServices;
     
     // Check authentication state
     auth.onAuthStateChanged(async (user) => {
-        if (user) {
-            await loadUserData(user.uid);
-            if (currentUser && currentUser.hobbies && currentUser.hobbies.length > 0) {
-                showMainApp();
+        try {
+            if (user) {
+                await loadUserData(user.uid);
+                
+                // Check if user data loaded successfully
+                if (!currentUser) {
+                    console.error('Failed to load user data');
+                    showToast('Error loading user data', 'error');
+                    await auth.signOut();
+                    showAuth();
+                    hideLoading();
+                    return;
+                }
+                
+                if (currentUser.hobbies && currentUser.hobbies.length > 0) {
+                    showMainApp();
+                } else {
+                    showSurvey();
+                }
             } else {
-                showSurvey();
+                currentUser = null;
+                showAuth();
             }
-        } else {
+            hideLoading();
+        } catch (error) {
+            console.error('Auth state change error:', error);
+            showToast('Authentication error: ' + error.message, 'error');
             showAuth();
+            hideLoading();
         }
+    }, (error) => {
+        // onAuthStateChanged error callback
+        console.error('Auth state observer error:', error);
+        showToast('Authentication system error', 'error');
+        showAuth();
         hideLoading();
     });
 
@@ -55,28 +104,42 @@ async function initializeApp() {
 
 function setupEventListeners() {
     // Auth form listeners
-    document.getElementById('emailLoginForm')?.addEventListener('submit', handleEmailLogin);
-    document.getElementById('emailSignupForm')?.addEventListener('submit', handleEmailSignup);
-    document.getElementById('googleLoginBtn')?.addEventListener('click', handleGoogleAuth);
-    document.getElementById('googleSignupBtn')?.addEventListener('click', handleGoogleAuth);
-    document.getElementById('showSignupLink')?.addEventListener('click', (e) => {
+    const emailLoginForm = document.getElementById('emailLoginForm');
+    const emailSignupForm = document.getElementById('emailSignupForm');
+    const googleLoginBtn = document.getElementById('googleLoginBtn');
+    const googleSignupBtn = document.getElementById('googleSignupBtn');
+    const showSignupLink = document.getElementById('showSignupLink');
+    const showLoginLink = document.getElementById('showLoginLink');
+    
+    if (emailLoginForm) emailLoginForm.addEventListener('submit', handleEmailLogin);
+    if (emailSignupForm) emailSignupForm.addEventListener('submit', handleEmailSignup);
+    if (googleLoginBtn) googleLoginBtn.addEventListener('click', handleGoogleAuth);
+    if (googleSignupBtn) googleSignupBtn.addEventListener('click', handleGoogleAuth);
+    if (showSignupLink) showSignupLink.addEventListener('click', (e) => {
         e.preventDefault();
         toggleAuthForms();
     });
-    document.getElementById('showLoginLink')?.addEventListener('click', (e) => {
+    if (showLoginLink) showLoginLink.addEventListener('click', (e) => {
         e.preventDefault();
         toggleAuthForms();
     });
 
     // Survey listeners
-    document.getElementById('completeSurveyBtn')?.addEventListener('click', completeSurvey);
+    const completeSurveyBtn = document.getElementById('completeSurveyBtn');
+    if (completeSurveyBtn) completeSurveyBtn.addEventListener('click', completeSurvey);
 
     // Main app listeners
-    document.getElementById('createPostBtn')?.addEventListener('click', createPost);
-    document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
-    document.getElementById('editHobbiesBtn')?.addEventListener('click', () => {
-        selectedHobbies = new Set(currentUser.hobbies);
-        showSurvey();
+    const createPostBtn = document.getElementById('createPostBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const editHobbiesBtn = document.getElementById('editHobbiesBtn');
+    
+    if (createPostBtn) createPostBtn.addEventListener('click', createPost);
+    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+    if (editHobbiesBtn) editHobbiesBtn.addEventListener('click', () => {
+        if (currentUser && currentUser.hobbies) {
+            selectedHobbies = new Set(currentUser.hobbies);
+            showSurvey();
+        }
     });
 
     // Navigation listeners
@@ -88,46 +151,62 @@ function setupEventListeners() {
     });
 
     // Hobby filter listener
-    document.getElementById('hobbyFilter')?.addEventListener('change', (e) => {
-        filterUsersByHobby(e.target.value);
-    });
+    const hobbyFilter = document.getElementById('hobbyFilter');
+    if (hobbyFilter) {
+        hobbyFilter.addEventListener('change', (e) => {
+            filterUsersByHobby(e.target.value);
+        });
+    }
 }
 
 // UI Navigation
 function showLoading() {
-    document.getElementById('loadingScreen').classList.remove('hidden');
+    const loadingScreen = document.getElementById('loadingScreen');
+    if (loadingScreen) loadingScreen.classList.remove('hidden');
 }
 
 function hideLoading() {
-    document.getElementById('loadingScreen').classList.add('hidden');
+    const loadingScreen = document.getElementById('loadingScreen');
+    if (loadingScreen) loadingScreen.classList.add('hidden');
 }
 
 function showAuth() {
-    document.getElementById('authContainer').classList.remove('hidden');
-    document.getElementById('surveyContainer').classList.add('hidden');
-    document.getElementById('mainApp').classList.add('hidden');
+    document.getElementById('authContainer')?.classList.remove('hidden');
+    document.getElementById('surveyContainer')?.classList.add('hidden');
+    document.getElementById('mainApp')?.classList.add('hidden');
 }
 
 function showSurvey() {
-    document.getElementById('authContainer').classList.add('hidden');
-    document.getElementById('surveyContainer').classList.remove('hidden');
-    document.getElementById('mainApp').classList.add('hidden');
+    document.getElementById('authContainer')?.classList.add('hidden');
+    document.getElementById('surveyContainer')?.classList.remove('hidden');
+    document.getElementById('mainApp')?.classList.add('hidden');
     renderHobbiesGrid();
 }
 
 function showMainApp() {
-    document.getElementById('authContainer').classList.add('hidden');
-    document.getElementById('surveyContainer').classList.add('hidden');
-    document.getElementById('mainApp').classList.remove('hidden');
+    if (!currentUser) {
+        console.error('Cannot show main app: currentUser is null');
+        showAuth();
+        return;
+    }
+    
+    document.getElementById('authContainer')?.classList.add('hidden');
+    document.getElementById('surveyContainer')?.classList.add('hidden');
+    document.getElementById('mainApp')?.classList.remove('hidden');
     initializeMainApp();
 }
 
 function toggleAuthForms() {
-    document.getElementById('loginForm').classList.toggle('hidden');
-    document.getElementById('signupForm').classList.toggle('hidden');
+    document.getElementById('loginForm')?.classList.toggle('hidden');
+    document.getElementById('signupForm')?.classList.toggle('hidden');
 }
 
 function switchSection(section) {
+    if (!currentUser) {
+        console.error('Cannot switch section: currentUser is null');
+        return;
+    }
+    
     // Update nav buttons
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.classList.remove('active');
@@ -140,7 +219,8 @@ function switchSection(section) {
     document.querySelectorAll('.content-section').forEach(sec => {
         sec.classList.remove('active');
     });
-    document.getElementById(`${section}Section`).classList.add('active');
+    const sectionElement = document.getElementById(`${section}Section`);
+    if (sectionElement) sectionElement.classList.add('active');
 
     // Load section-specific data
     if (section === 'feed') {
@@ -157,8 +237,13 @@ async function handleEmailLogin(e) {
     e.preventDefault();
     const { auth } = window.firebaseServices;
     
-    const email = document.getElementById('loginEmail').value;
-    const password = document.getElementById('loginPassword').value;
+    const email = document.getElementById('loginEmail')?.value;
+    const password = document.getElementById('loginPassword')?.value;
+
+    if (!email || !password) {
+        showToast('Please fill in all fields', 'warning');
+        return;
+    }
 
     try {
         showLoading();
@@ -166,6 +251,7 @@ async function handleEmailLogin(e) {
         showToast('Welcome back!', 'success');
     } catch (error) {
         hideLoading();
+        console.error('Login error:', error);
         showToast(error.message, 'error');
     }
 }
@@ -174,10 +260,15 @@ async function handleEmailSignup(e) {
     e.preventDefault();
     const { auth, db } = window.firebaseServices;
     
-    const name = document.getElementById('signupName').value;
-    const email = document.getElementById('signupEmail').value;
-    const password = document.getElementById('signupPassword').value;
-    const age = parseInt(document.getElementById('signupAge').value);
+    const name = document.getElementById('signupName')?.value;
+    const email = document.getElementById('signupEmail')?.value;
+    const password = document.getElementById('signupPassword')?.value;
+    const age = parseInt(document.getElementById('signupAge')?.value);
+
+    if (!name || !email || !password || !age) {
+        showToast('Please fill in all fields', 'warning');
+        return;
+    }
 
     try {
         showLoading();
@@ -201,6 +292,7 @@ async function handleEmailSignup(e) {
         showToast('Account created successfully!', 'success');
     } catch (error) {
         hideLoading();
+        console.error('Signup error:', error);
         showToast(error.message, 'error');
     }
 }
@@ -232,6 +324,7 @@ async function handleGoogleAuth() {
         showToast('Signed in successfully!', 'success');
     } catch (error) {
         hideLoading();
+        console.error('Google auth error:', error);
         showToast(error.message, 'error');
     }
 }
@@ -240,6 +333,12 @@ async function handleLogout() {
     const { auth } = window.firebaseServices;
     
     try {
+        // Unsubscribe from real-time listeners
+        if (unsubscribePosts) {
+            unsubscribePosts();
+            unsubscribePosts = null;
+        }
+        
         await auth.signOut();
         currentUser = null;
         allUsers = [];
@@ -247,6 +346,7 @@ async function handleLogout() {
         showToast('Logged out successfully', 'success');
         showAuth();
     } catch (error) {
+        console.error('Logout error:', error);
         showToast(error.message, 'error');
     }
 }
@@ -256,19 +356,35 @@ async function loadUserData(uid) {
     const { db } = window.firebaseServices;
     
     try {
-        const userDoc = await db.collection('users').doc(uid).get();
+        // Add timeout to prevent infinite loading
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout loading user data')), 8000)
+        );
+        
+        const loadPromise = db.collection('users').doc(uid).get();
+        
+        const userDoc = await Promise.race([loadPromise, timeoutPromise]);
+        
         if (userDoc.exists) {
             currentUser = { id: uid, ...userDoc.data() };
+            console.log('User loaded:', currentUser);
+        } else {
+            console.error('User document does not exist');
+            currentUser = null;
         }
     } catch (error) {
         console.error('Error loading user data:', error);
-        showToast('Error loading user data', 'error');
+        showToast('Error loading user data: ' + error.message, 'error');
+        currentUser = null;
+        throw error; // Re-throw to be caught by caller
     }
 }
 
 // Survey/Onboarding
 function renderHobbiesGrid() {
     const grid = document.getElementById('hobbiesGrid');
+    if (!grid) return;
+    
     grid.innerHTML = hobbies.map(hobby => `
         <div class="hobby-card ${selectedHobbies.has(hobby.name) ? 'selected' : ''}" 
              onclick="toggleHobbySelection('${hobby.name}')">
@@ -288,6 +404,11 @@ function toggleHobbySelection(hobbyName) {
 }
 
 async function completeSurvey() {
+    if (!currentUser) {
+        showToast('Please log in first', 'error');
+        return;
+    }
+    
     if (selectedHobbies.size === 0) {
         showToast('Please select at least one hobby', 'warning');
         return;
@@ -303,19 +424,30 @@ async function completeSurvey() {
         
         currentUser.hobbies = Array.from(selectedHobbies);
         showToast('Interests saved!', 'success');
+        hideLoading();
         showMainApp();
     } catch (error) {
         hideLoading();
+        console.error('Survey error:', error);
         showToast(error.message, 'error');
     }
 }
 
 // Main App Initialization
 async function initializeMainApp() {
+    if (!currentUser) {
+        console.error('Cannot initialize main app: currentUser is null');
+        showAuth();
+        return;
+    }
+    
     // Set user info in UI
-    const initial = currentUser.name.charAt(0).toUpperCase();
-    document.getElementById('navUserAvatar').textContent = initial;
-    document.getElementById('createPostAvatar').textContent = initial;
+    const initial = currentUser.name ? currentUser.name.charAt(0).toUpperCase() : '?';
+    const navAvatar = document.getElementById('navUserAvatar');
+    const createAvatar = document.getElementById('createPostAvatar');
+    
+    if (navAvatar) navAvatar.textContent = initial;
+    if (createAvatar) createAvatar.textContent = initial;
 
     // Load initial data
     await loadPosts();
@@ -323,30 +455,37 @@ async function initializeMainApp() {
 }
 
 function setupRealtimeListeners() {
+    if (!currentUser) {
+        console.error('Cannot setup listeners: currentUser is null');
+        return;
+    }
+    
     const { db } = window.firebaseServices;
     
+    // Unsubscribe from previous listener if exists
+    if (unsubscribePosts) {
+        unsubscribePosts();
+    }
+    
     // Listen to posts in real-time
-    db.collection('posts')
+    unsubscribePosts = db.collection('posts')
         .orderBy('createdAt', 'desc')
         .limit(50)
         .onSnapshot((snapshot) => {
             snapshot.docChanges().forEach((change) => {
                 if (change.type === 'added') {
-                    // New post added
                     const post = { id: change.doc.id, ...change.doc.data() };
                     if (!allPosts.find(p => p.id === post.id)) {
                         allPosts.unshift(post);
                         renderPosts();
                     }
                 } else if (change.type === 'modified') {
-                    // Post updated
                     const index = allPosts.findIndex(p => p.id === change.doc.id);
                     if (index !== -1) {
                         allPosts[index] = { id: change.doc.id, ...change.doc.data() };
                         renderPosts();
                     }
                 } else if (change.type === 'removed') {
-                    // Post deleted
                     allPosts = allPosts.filter(p => p.id !== change.doc.id);
                     renderPosts();
                 }
@@ -358,6 +497,11 @@ function setupRealtimeListeners() {
 
 // Posts
 async function loadPosts() {
+    if (!currentUser) {
+        console.error('Cannot load posts: currentUser is null');
+        return;
+    }
+    
     const { db } = window.firebaseServices;
     
     try {
@@ -379,7 +523,15 @@ async function loadPosts() {
 }
 
 async function createPost() {
-    const content = document.getElementById('postContent').value.trim();
+    if (!currentUser) {
+        showToast('Please log in first', 'error');
+        return;
+    }
+    
+    const contentInput = document.getElementById('postContent');
+    if (!contentInput) return;
+    
+    const content = contentInput.value.trim();
     
     if (!content) {
         showToast('Please write something', 'warning');
@@ -391,15 +543,15 @@ async function createPost() {
     try {
         await db.collection('posts').add({
             authorId: currentUser.id,
-            authorName: currentUser.name,
-            authorPhotoURL: currentUser.photoURL,
+            authorName: currentUser.name || 'Anonymous',
+            authorPhotoURL: currentUser.photoURL || null,
             content: content,
             likes: [],
             commentCount: 0,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
 
-        document.getElementById('postContent').value = '';
+        contentInput.value = '';
         showToast('Post created!', 'success');
     } catch (error) {
         console.error('Error creating post:', error);
@@ -409,6 +561,12 @@ async function createPost() {
 
 function renderPosts() {
     const container = document.getElementById('postsContainer');
+    if (!container) return;
+    
+    if (!currentUser) {
+        container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-secondary);">Please log in to view posts</div>';
+        return;
+    }
     
     if (allPosts.length === 0) {
         container.innerHTML = `
@@ -424,7 +582,7 @@ function renderPosts() {
         const isLiked = post.likes && post.likes.includes(currentUser.id);
         const likeCount = post.likes ? post.likes.length : 0;
         const timeAgo = getTimeAgo(post.createdAt?.toDate());
-        const initial = post.authorName.charAt(0).toUpperCase();
+        const initial = post.authorName ? post.authorName.charAt(0).toUpperCase() : '?';
 
         return `
             <div class="post-card" data-post-id="${post.id}">
@@ -434,7 +592,7 @@ function renderPosts() {
                         `<div class="user-avatar-small">${initial}</div>`
                     }
                     <div class="post-author-info">
-                        <div class="post-author-name">${post.authorName}</div>
+                        <div class="post-author-name">${escapeHtml(post.authorName)}</div>
                         <div class="post-timestamp">${timeAgo}</div>
                     </div>
                 </div>
@@ -466,6 +624,11 @@ function renderPosts() {
 }
 
 async function toggleLike(postId) {
+    if (!currentUser) {
+        showToast('Please log in first', 'error');
+        return;
+    }
+    
     const { db, firebase } = window.firebaseServices;
     
     try {
@@ -493,6 +656,8 @@ async function toggleLike(postId) {
 
 async function toggleComments(postId) {
     const commentsSection = document.getElementById(`comments-${postId}`);
+    if (!commentsSection) return;
+    
     commentsSection.classList.toggle('hidden');
     
     if (!commentsSection.classList.contains('hidden')) {
@@ -501,6 +666,8 @@ async function toggleComments(postId) {
 }
 
 async function loadComments(postId) {
+    if (!currentUser) return;
+    
     const { db } = window.firebaseServices;
     
     try {
@@ -515,6 +682,7 @@ async function loadComments(postId) {
         }));
         
         const commentsList = document.getElementById(`comments-list-${postId}`);
+        if (!commentsList) return;
         
         if (comments.length === 0) {
             commentsList.innerHTML = '<p style="text-align: center; color: var(--text-tertiary); padding: 20px;">No comments yet</p>';
@@ -522,12 +690,12 @@ async function loadComments(postId) {
         }
 
         commentsList.innerHTML = comments.map(comment => {
-            const initial = comment.authorName.charAt(0).toUpperCase();
+            const initial = comment.authorName ? comment.authorName.charAt(0).toUpperCase() : '?';
             return `
                 <div class="comment">
                     <div class="comment-avatar">${initial}</div>
                     <div class="comment-content">
-                        <div class="comment-author">${comment.authorName}</div>
+                        <div class="comment-author">${escapeHtml(comment.authorName)}</div>
                         <div class="comment-text">${escapeHtml(comment.text)}</div>
                     </div>
                 </div>
@@ -539,7 +707,14 @@ async function loadComments(postId) {
 }
 
 async function addComment(postId) {
+    if (!currentUser) {
+        showToast('Please log in first', 'error');
+        return;
+    }
+    
     const input = document.getElementById(`comment-input-${postId}`);
+    if (!input) return;
+    
     const text = input.value.trim();
     
     if (!text) {
@@ -553,7 +728,7 @@ async function addComment(postId) {
         await db.collection('posts').doc(postId)
             .collection('comments').add({
                 authorId: currentUser.id,
-                authorName: currentUser.name,
+                authorName: currentUser.name || 'Anonymous',
                 text: text,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
@@ -574,6 +749,19 @@ async function addComment(postId) {
 
 // Discover Users
 async function loadUsers() {
+    if (!currentUser || !currentUser.hobbies || currentUser.hobbies.length === 0) {
+        const container = document.getElementById('usersContainer');
+        if (container) {
+            container.innerHTML = `
+                <div style="grid-column: 1 / -1; text-align: center; padding: 60px 20px; color: var(--text-secondary);">
+                    <h3>No hobbies selected</h3>
+                    <p>Add some hobbies to discover people with similar interests!</p>
+                </div>
+            `;
+        }
+        return;
+    }
+    
     const { db } = window.firebaseServices;
     
     try {
@@ -595,7 +783,11 @@ async function loadUsers() {
 }
 
 function populateHobbyFilter() {
+    if (!currentUser || !currentUser.hobbies) return;
+    
     const select = document.getElementById('hobbyFilter');
+    if (!select) return;
+    
     select.innerHTML = '<option value="all">All Hobbies</option>' +
         currentUser.hobbies.map(hobby => 
             `<option value="${hobby}">${hobby}</option>`
@@ -615,6 +807,7 @@ function filterUsersByHobby(hobby) {
 
 function renderUsers(users) {
     const container = document.getElementById('usersContainer');
+    if (!container) return;
     
     if (users.length === 0) {
         container.innerHTML = `
@@ -627,13 +820,14 @@ function renderUsers(users) {
     }
 
     container.innerHTML = users.map(user => {
-        const initial = user.name.charAt(0).toUpperCase();
-        const commonHobbies = user.hobbies.filter(h => currentUser.hobbies.includes(h));
+        const initial = user.name ? user.name.charAt(0).toUpperCase() : '?';
+        const commonHobbies = user.hobbies && currentUser && currentUser.hobbies ? 
+            user.hobbies.filter(h => currentUser.hobbies.includes(h)) : [];
         
         return `
             <div class="user-card">
                 <div class="user-card-avatar">${initial}</div>
-                <div class="user-card-name">${user.name}</div>
+                <div class="user-card-name">${escapeHtml(user.name || 'Anonymous')}</div>
                 <div class="user-card-hobbies">
                     ${commonHobbies.slice(0, 3).map(hobby => 
                         `<span class="hobby-badge">${hobby}</span>`
@@ -653,11 +847,20 @@ async function connectWithUser(userId) {
 
 // Profile
 async function loadProfile() {
-    const initial = currentUser.name.charAt(0).toUpperCase();
+    if (!currentUser) {
+        console.error('Cannot load profile: currentUser is null');
+        return;
+    }
     
-    document.getElementById('profileAvatar').textContent = initial;
-    document.getElementById('profileName').textContent = currentUser.name;
-    document.getElementById('profileEmail').textContent = currentUser.email;
+    const initial = currentUser.name ? currentUser.name.charAt(0).toUpperCase() : '?';
+    
+    const profileAvatar = document.getElementById('profileAvatar');
+    const profileName = document.getElementById('profileName');
+    const profileEmail = document.getElementById('profileEmail');
+    
+    if (profileAvatar) profileAvatar.textContent = initial;
+    if (profileName) profileName.textContent = currentUser.name || 'Anonymous';
+    if (profileEmail) profileEmail.textContent = currentUser.email || '';
     
     // Load stats
     const { db } = window.firebaseServices;
@@ -667,9 +870,13 @@ async function loadProfile() {
             .where('authorId', '==', currentUser.id)
             .get();
         
-        document.getElementById('postCount').textContent = postsSnapshot.size;
-        document.getElementById('hobbyCount').textContent = currentUser.hobbies.length;
-        document.getElementById('connectionCount').textContent = '0'; // Placeholder
+        const postCount = document.getElementById('postCount');
+        const hobbyCount = document.getElementById('hobbyCount');
+        const connectionCount = document.getElementById('connectionCount');
+        
+        if (postCount) postCount.textContent = postsSnapshot.size;
+        if (hobbyCount) hobbyCount.textContent = currentUser.hobbies ? currentUser.hobbies.length : 0;
+        if (connectionCount) connectionCount.textContent = '0'; // Placeholder
         
         // Load user's posts
         const userPosts = postsSnapshot.docs.map(doc => ({
@@ -684,13 +891,16 @@ async function loadProfile() {
     
     // Render hobbies
     const hobbiesContainer = document.getElementById('profileHobbiesContainer');
-    hobbiesContainer.innerHTML = currentUser.hobbies.map(hobby => 
-        `<span class="hobby-tag">${hobby}</span>`
-    ).join('');
+    if (hobbiesContainer && currentUser.hobbies) {
+        hobbiesContainer.innerHTML = currentUser.hobbies.map(hobby => 
+            `<span class="hobby-tag">${hobby}</span>`
+        ).join('');
+    }
 }
 
 function renderUserPosts(posts) {
     const container = document.getElementById('userPostsContainer');
+    if (!container) return;
     
     if (posts.length === 0) {
         container.innerHTML = `
@@ -732,6 +942,7 @@ function getTimeAgo(date) {
 }
 
 function escapeHtml(text) {
+    if (!text) return '';
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
@@ -739,9 +950,11 @@ function escapeHtml(text) {
 
 function showToast(message, type = 'success') {
     const container = document.getElementById('toastContainer');
+    if (!container) return;
+    
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    toast.innerHTML = `<div class="toast-message">${message}</div>`;
+    toast.innerHTML = `<div class="toast-message">${escapeHtml(message)}</div>`;
     
     container.appendChild(toast);
     
