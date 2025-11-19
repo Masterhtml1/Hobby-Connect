@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HobbyConnect - Connect Through Shared Interests</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loader"></div>
+        <p>Loading HobbyConnect...</p>
+    </div>
+
+    <!-- Authentication Container -->
+    <div id="authContainer" class="auth-section hidden">
+        <!-- Login Form -->
+        <div id="loginForm" class="auth-card">
+            <div class="auth-header">
+                <h1>Welcome to HobbyConnect</h1>
+                <p>Connect with people who share your passions</p>
+            </div>
+
+            <button id="googleLoginBtn" class="btn btn-google">
+                <svg width="18" height="18" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Continue with Google
+            </button>
+
+            <div class="divider">
+                <span>or</span>
+            </div>
+
+            <form id="emailLoginForm">
+                <div class="form-group">
+                    <label for="loginEmail">Email</label>
+                    <input type="email" id="loginEmail" required placeholder="your@email.com">
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">Password</label>
+                    <input type="password" id="loginPassword" required placeholder="Enter your password">
+                </div>
+                <div class="form-footer">
+                    <a href="#" id="forgotPasswordLink" class="link">Forgot password?</a>
+                </div>
+                <button type="submit" class="btn btn-primary">Log In</button>
+            </form>
+
+            <div class="auth-switch">
+                <p>Don't have an account? <a href="#" id="showSignupLink">Sign up</a></p>
+            </div>
+        </div>
+
+        <!-- Signup Form -->
+        <div id="signupForm" class="auth-card hidden">
+            <div class="auth-header">
+                <h1>Create Your Account</h1>
+                <p>Join thousands connecting through shared interests</p>
+            </div>
+
+            <button id="googleSignupBtn" class="btn btn-google">
+                <svg width="18" height="18" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Sign up with Google
+            </button>
+
+            <div class="divider">
+                <span>or</span>
+            </div>
+
+            <form id="emailSignupForm">
+                <div class="form-group">
+                    <label for="signupName">Full Name</label>
+                    <input type="text" id="signupName" required placeholder="John Doe">
+                </div>
+                <div class="form-group">
+                    <label for="signupEmail">Email</label>
+                    <input type="email" id="signupEmail" required placeholder="your@email.com">
+                </div>
+                <div class="form-group">
+                    <label for="signupPassword">Password</label>
+                    <input type="password" id="signupPassword" required placeholder="At least 6 characters" minlength="6">
+                </div>
+                <div class="form-group">
+                    <label for="signupAge">Age</label>
+                    <input type="number" id="signupAge" required placeholder="Your age" min="13" max="120">
+                </div>
+                <button type="submit" class="btn btn-primary">Create Account</button>
+            </form>
+
+            <div class="auth-switch">
+                <p>Already have an account? <a href="#" id="showLoginLink">Log in</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Survey/Onboarding -->
+    <div id="surveyContainer" class="survey-section hidden">
+        <div class="survey-card">
+            <div class="survey-header">
+                <h1>What are your interests?</h1>
+                <p>Select all hobbies you enjoy. We'll use this to connect you with like-minded people.</p>
+            </div>
+
+            <div class="hobbies-grid" id="hobbiesGrid">
+                <!-- Hobbies will be dynamically loaded -->
+            </div>
+
+            <div class="survey-footer">
+                <button id="completeSurveyBtn" class="btn btn-primary">Continue to HobbyConnect</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="mainApp" class="app-container hidden">
+        <!-- Navigation -->
+        <nav class="navbar">
+            <div class="nav-container">
+                <div class="nav-brand">
+                    <h1>HobbyConnect</h1>
+                </div>
+                <div class="nav-menu">
+                    <button class="nav-btn active" data-section="feed">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        </svg>
+                        <span>Feed</span>
+                    </button>
+                    <button class="nav-btn" data-section="discover">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="m21 21-4.35-4.35"></path>
+                        </svg>
+                        <span>Discover</span>
+                    </button>
+                    <button class="nav-btn" data-section="profile">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        <span>Profile</span>
+                    </button>
+                </div>
+                <div class="nav-actions">
+                    <div class="user-avatar" id="navUserAvatar"></div>
+                    <button id="logoutBtn" class="btn btn-secondary">Logout</button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Content Sections -->
+        <main class="main-content">
+            <!-- Feed Section -->
+            <section id="feedSection" class="content-section active">
+                <div class="feed-container">
+                    <div class="feed-header">
+                        <h2>Your Feed</h2>
+                    </div>
+
+                    <!-- Create Post -->
+                    <div class="create-post-card">
+                        <div class="create-post-header">
+                            <div class="user-avatar-small" id="createPostAvatar"></div>
+                            <textarea id="postContent" placeholder="Share something about your hobbies..." rows="3"></textarea>
+                        </div>
+                        <div class="create-post-footer">
+                            <div class="post-options">
+                                <button class="icon-btn" title="Add image">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                        <polyline points="21 15 16 10 5 21"></polyline>
+                                    </svg>
+                                </button>
+                            </div>
+                            <button id="createPostBtn" class="btn btn-primary">Post</button>
+                        </div>
+                    </div>
+
+                    <!-- Posts Feed -->
+                    <div id="postsContainer" class="posts-container">
+                        <!-- Posts will be loaded here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Discover Section -->
+            <section id="discoverSection" class="content-section">
+                <div class="discover-container">
+                    <div class="discover-header">
+                        <h2>Discover People</h2>
+                        <p>Find users who share your interests</p>
+                    </div>
+
+                    <div class="filter-bar">
+                        <div class="filter-group">
+                            <label>Filter by hobby:</label>
+                            <select id="hobbyFilter">
+                                <option value="all">All Hobbies</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="usersContainer" class="users-grid">
+                        <!-- Users will be loaded here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Profile Section -->
+            <section id="profileSection" class="content-section">
+                <div class="profile-container">
+                    <div class="profile-header">
+                        <div class="profile-avatar" id="profileAvatar"></div>
+                        <div class="profile-info">
+                            <h2 id="profileName"></h2>
+                            <p id="profileEmail"></p>
+                        </div>
+                        <button id="editProfileBtn" class="btn btn-secondary">Edit Profile</button>
+                    </div>
+
+                    <div class="profile-stats">
+                        <div class="stat-card">
+                            <h3 id="postCount">0</h3>
+                            <p>Posts</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 id="hobbyCount">0</h3>
+                            <p>Hobbies</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 id="connectionCount">0</h3>
+                            <p>Connections</p>
+                        </div>
+                    </div>
+
+                    <div class="profile-hobbies">
+                        <h3>My Interests</h3>
+                        <div id="profileHobbiesContainer" class="hobbies-list">
+                            <!-- Hobbies will be loaded here -->
+                        </div>
+                        <button id="editHobbiesBtn" class="btn btn-outline">Edit Interests</button>
+                    </div>
+
+                    <div class="profile-posts">
+                        <h3>My Posts</h3>
+                        <div id="userPostsContainer" class="posts-container">
+                            <!-- User's posts will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+    
+    <!-- Application Scripts -->
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
