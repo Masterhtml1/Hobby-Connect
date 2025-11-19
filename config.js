@@ -3,12 +3,13 @@
 // Get these from: Firebase Console > Project Settings > General > Your apps > Web app
 
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY_HERE",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyDMsZyqBal3KdS67tjXJ3zeqNk7rZ4SHUo",
+  authDomain: "hobbyconnect-1dadd.firebaseapp.com",
+  projectId: "hobbyconnect-1dadd",
+  storageBucket: "hobbyconnect-1dadd.firebasestorage.app",
+  messagingSenderId: "974198667440",
+  appId: "1:974198667440:web:9aa0c1dcfbe55648496375",
+  measurementId: "G-QCK2MF776F"
 };
 
 // Initialize Firebase
