@@ -789,29 +789,24 @@ async function createPost() {
             return;
         }
 
-        if (imageFile.size > 5 * 1024 * 1024) { // 5MB limit
-            showToast('Image is too large (max 5MB)', 'warning');
+        if (imageFile.size > 1 * 1024 * 1024) { // 1MB limit for base64
+            showToast('Image is too large (max 1MB)', 'warning');
             return;
         }
     }
 
-    const { db, storage, firebase } = window.firebaseServices;
+    const { db, firebase } = window.firebaseServices;
 
     try {
         showLoading();
         
-        let imageUrl = null;
+        let imageData = null;
 
-        // Upload image if present
+        // Convert image to base64 if present
         if (imageFile) {
-            const timestamp = Date.now();
-            const imagePath = `posts/${currentUser.id}/${timestamp}_${imageFile.name}`;
-            const storageRef = storage.ref(imagePath);
-            
-            console.log('Uploading image...');
-            const uploadTask = await storageRef.put(imageFile);
-            imageUrl = await uploadTask.ref.getDownloadURL();
-            console.log('Image uploaded:', imageUrl);
+            console.log('Converting image to base64...');
+            imageData = await convertImageToBase64(imageFile);
+            console.log('Image converted successfully');
         }
 
         // Create post
@@ -820,7 +815,7 @@ async function createPost() {
             authorName: currentUser.name || 'Anonymous',
             authorPhotoURL: currentUser.photoURL || null,
             content: content || '',
-            imageUrl: imageUrl,
+            imageUrl: imageData, // Store base64 directly
             likes: [],
             commentCount: 0,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -828,6 +823,13 @@ async function createPost() {
 
         contentInput.value = '';
         if (imageInput) imageInput.value = '';
+        
+        // Reset image button
+        const imageBtn = document.querySelector('.icon-btn[title*="Add image"]');
+        if (imageBtn) {
+            imageBtn.style.color = '';
+            imageBtn.title = 'Add image';
+        }
         
         console.log('Post created successfully');
         showToast('Post created!', 'success');
@@ -837,6 +839,16 @@ async function createPost() {
         hideLoading();
         showToast('Error creating post: ' + error.message, 'error');
     }
+}
+
+// Helper function to convert image to base64
+function convertImageToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+    });
 }
 
 function renderPosts() {
@@ -1390,24 +1402,20 @@ window.uploadProfilePicture = async function() {
             return;
         }
         
-        if (file.size > 2 * 1024 * 1024) { // 2MB limit for profile pics
-            showToast('Image is too large (max 2MB)', 'warning');
+        if (file.size > 500 * 1024) { // 500KB limit for profile pics
+            showToast('Image is too large (max 500KB)', 'warning');
             return;
         }
         
         try {
             showLoading();
             
-            const { storage, db, auth } = window.firebaseServices;
+            const { db, auth } = window.firebaseServices;
             
-            // Upload to storage
-            const imagePath = `profile-pictures/${currentUser.id}/profile.jpg`;
-            const storageRef = storage.ref(imagePath);
-            
-            console.log('Uploading profile picture...');
-            const uploadTask = await storageRef.put(file);
-            const photoURL = await uploadTask.ref.getDownloadURL();
-            console.log('Profile picture uploaded:', photoURL);
+            // Convert to base64
+            console.log('Converting profile picture to base64...');
+            const photoURL = await convertImageToBase64(file);
+            console.log('Profile picture converted');
             
             // Update user document
             await db.collection('users').doc(currentUser.id).update({
@@ -1423,13 +1431,18 @@ window.uploadProfilePicture = async function() {
             // Update local state
             currentUser.photoURL = photoURL;
             
-            // Update UI
+            // Update UI - refresh all avatars
             updateUserAvatars();
             
             // Reload profile if on profile page
             const profileSection = document.getElementById('profileSection');
             if (profileSection && profileSection.classList.contains('active')) {
                 loadProfile();
+            }
+            
+            // Reload posts to update avatar in existing posts
+            if (allPosts.length > 0) {
+                renderPosts();
             }
             
             hideLoading();
