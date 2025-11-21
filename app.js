@@ -411,6 +411,11 @@ async function handleEmailSignup(e) {
         return;
     }
 
+    if (age > 15) {
+        showToast('This app is only for users aged 13-15', 'warning');
+        return;
+    }
+
     if (password.length < 6) {
         showToast('Password must be at least 6 characters', 'warning');
         return;
@@ -756,41 +761,80 @@ async function createPost() {
     }
 
     const contentInput = document.getElementById('postContent');
+    const imageInput = document.getElementById('postImageInput');
+    
     if (!contentInput) {
         console.error('Post content input not found');
         return;
     }
 
     const content = contentInput.value.trim();
+    const imageFile = imageInput ? imageInput.files[0] : null;
 
-    if (!content) {
-        showToast('Please write something', 'warning');
+    if (!content && !imageFile) {
+        showToast('Please write something or add an image', 'warning');
         return;
     }
 
-    if (content.length > 5000) {
+    if (content && content.length > 5000) {
         showToast('Post is too long (max 5000 characters)', 'warning');
         return;
     }
 
-    const { db, firebase } = window.firebaseServices;
+    // Validate image
+    if (imageFile) {
+        const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+        if (!validTypes.includes(imageFile.type)) {
+            showToast('Please upload a valid image (JPG, PNG, GIF, WEBP)', 'warning');
+            return;
+        }
+
+        if (imageFile.size > 5 * 1024 * 1024) { // 5MB limit
+            showToast('Image is too large (max 5MB)', 'warning');
+            return;
+        }
+    }
+
+    const { db, storage, firebase } = window.firebaseServices;
 
     try {
+        showLoading();
+        
+        let imageUrl = null;
+
+        // Upload image if present
+        if (imageFile) {
+            const timestamp = Date.now();
+            const imagePath = `posts/${currentUser.id}/${timestamp}_${imageFile.name}`;
+            const storageRef = storage.ref(imagePath);
+            
+            console.log('Uploading image...');
+            const uploadTask = await storageRef.put(imageFile);
+            imageUrl = await uploadTask.ref.getDownloadURL();
+            console.log('Image uploaded:', imageUrl);
+        }
+
+        // Create post
         await db.collection('posts').add({
             authorId: currentUser.id,
             authorName: currentUser.name || 'Anonymous',
             authorPhotoURL: currentUser.photoURL || null,
-            content: content,
+            content: content || '',
+            imageUrl: imageUrl,
             likes: [],
             commentCount: 0,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
 
         contentInput.value = '';
+        if (imageInput) imageInput.value = '';
+        
         console.log('Post created successfully');
         showToast('Post created!', 'success');
+        hideLoading();
     } catch (error) {
         console.error('Error creating post:', error);
+        hideLoading();
         showToast('Error creating post: ' + error.message, 'error');
     }
 }
@@ -839,7 +883,12 @@ function renderPosts() {
                         <div class="post-timestamp">${timeAgo}</div>
                     </div>
                 </div>
-                <div class="post-content">${escapeHtml(post.content)}</div>
+                ${post.content ? `<div class="post-content">${escapeHtml(post.content)}</div>` : ''}
+                ${post.imageUrl ? `
+                    <div class="post-image" style="margin: 15px 0;">
+                        <img src="${post.imageUrl}" alt="Post image" style="width: 100%; border-radius: 12px; cursor: pointer;" onclick="openImageModal('${post.imageUrl}')">
+                    </div>
+                ` : ''}
                 <div class="post-actions">
                     <button class="post-action-btn ${isLiked ? 'liked' : ''}" onclick="toggleLike('${post.id}')">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="${isLiked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
@@ -1144,7 +1193,19 @@ async function loadProfile() {
     const profileName = document.getElementById('profileName');
     const profileEmail = document.getElementById('profileEmail');
 
-    if (profileAvatar) profileAvatar.textContent = initial;
+    // Show profile picture or initial
+    if (profileAvatar) {
+        if (currentUser.photoURL) {
+            profileAvatar.style.backgroundImage = `url(${currentUser.photoURL})`;
+            profileAvatar.style.backgroundSize = 'cover';
+            profileAvatar.style.backgroundPosition = 'center';
+            profileAvatar.textContent = '';
+        } else {
+            profileAvatar.style.backgroundImage = 'none';
+            profileAvatar.textContent = initial;
+        }
+    }
+    
     if (profileName) profileName.textContent = currentUser.name || 'Anonymous';
     if (profileEmail) profileEmail.textContent = currentUser.email || '';
 
@@ -1274,7 +1335,139 @@ function showToast(message, type = 'success') {
     }, 3000);
 }
 
+// ==================== IMAGE MODAL ====================
+window.openImageModal = function(imageUrl) {
+    // Create modal
+    const modal = document.createElement('div');
+    modal.id = 'imageModal';
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        cursor: pointer;
+    `;
+    
+    modal.innerHTML = `
+        <img src="${imageUrl}" style="max-width: 90%; max-height: 90%; border-radius: 10px; box-shadow: 0 10px 50px rgba(0,0,0,0.5);">
+    `;
+    
+    modal.onclick = function() {
+        modal.remove();
+    };
+    
+    document.body.appendChild(modal);
+};
+
+// ==================== PROFILE PICTURE UPLOAD ====================
+window.uploadProfilePicture = async function() {
+    console.log('Opening profile picture upload...');
+    
+    if (!currentUser) {
+        showToast('Please log in first', 'error');
+        return;
+    }
+    
+    // Create file input
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/jpeg,image/jpg,image/png,image/gif,image/webp';
+    
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        // Validate file
+        const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+        if (!validTypes.includes(file.type)) {
+            showToast('Please upload a valid image (JPG, PNG, GIF, WEBP)', 'warning');
+            return;
+        }
+        
+        if (file.size > 2 * 1024 * 1024) { // 2MB limit for profile pics
+            showToast('Image is too large (max 2MB)', 'warning');
+            return;
+        }
+        
+        try {
+            showLoading();
+            
+            const { storage, db, auth } = window.firebaseServices;
+            
+            // Upload to storage
+            const imagePath = `profile-pictures/${currentUser.id}/profile.jpg`;
+            const storageRef = storage.ref(imagePath);
+            
+            console.log('Uploading profile picture...');
+            const uploadTask = await storageRef.put(file);
+            const photoURL = await uploadTask.ref.getDownloadURL();
+            console.log('Profile picture uploaded:', photoURL);
+            
+            // Update user document
+            await db.collection('users').doc(currentUser.id).update({
+                photoURL: photoURL
+            });
+            
+            // Update auth profile
+            const user = auth.currentUser;
+            if (user) {
+                await user.updateProfile({ photoURL: photoURL });
+            }
+            
+            // Update local state
+            currentUser.photoURL = photoURL;
+            
+            // Update UI
+            updateUserAvatars();
+            
+            // Reload profile if on profile page
+            const profileSection = document.getElementById('profileSection');
+            if (profileSection && profileSection.classList.contains('active')) {
+                loadProfile();
+            }
+            
+            hideLoading();
+            showToast('Profile picture updated!', 'success');
+            
+        } catch (error) {
+            console.error('Error uploading profile picture:', error);
+            hideLoading();
+            showToast('Error uploading picture: ' + error.message, 'error');
+        }
+    };
+    
+    input.click();
+};
+
+// ==================== TRIGGER IMAGE UPLOAD FOR POST ====================
+window.triggerImageUpload = function() {
+    const input = document.getElementById('postImageInput');
+    if (input) {
+        input.click();
+    }
+};
+
+window.handleImageSelect = function(input) {
+    const file = input.files[0];
+    if (file) {
+        const fileName = file.name;
+        const imageBtn = document.querySelector('.icon-btn[title="Add image"]');
+        if (imageBtn) {
+            imageBtn.style.color = 'var(--primary)';
+            imageBtn.title = `Selected: ${fileName}`;
+        }
+        showToast('Image selected: ' + fileName, 'success');
+    }
+};
+
 // ==================== CONSOLE INFO ====================
 console.log('HobbyConnect App Loaded');
 console.log('Version: 2.0 - Fully Functional');
 console.log('All features implemented and tested');
+console.log('New features: Image uploads, Profile pictures, Age restriction (13-15)');
