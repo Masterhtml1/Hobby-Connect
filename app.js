@@ -669,8 +669,22 @@ function updateUserAvatars() {
     const navAvatar = document.getElementById('navUserAvatar');
     const createAvatar = document.getElementById('createPostAvatar');
 
-    if (navAvatar) navAvatar.textContent = initial;
-    if (createAvatar) createAvatar.textContent = initial;
+    // Update both avatars
+    [navAvatar, createAvatar].forEach(avatar => {
+        if (avatar) {
+            if (currentUser.photoURL) {
+                // Show profile picture
+                avatar.style.backgroundImage = `url(${currentUser.photoURL})`;
+                avatar.style.backgroundSize = 'cover';
+                avatar.style.backgroundPosition = 'center';
+                avatar.textContent = '';
+            } else {
+                // Show initial
+                avatar.style.backgroundImage = 'none';
+                avatar.textContent = initial;
+            }
+        }
+    });
 }
 
 function setupRealtimeListeners() {
@@ -720,6 +734,53 @@ function setupRealtimeListeners() {
                 showToast('Error loading posts', 'error');
             }
         );
+}
+
+// ==================== IMAGE HELPERS ====================
+// Helper function to convert image to base64
+function convertImageToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+    });
+}
+
+// Helper function to compress image before upload
+function compressImage(file, maxWidth = 800, quality = 0.7) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                // Calculate new dimensions
+                let width = img.width;
+                let height = img.height;
+                
+                if (width > maxWidth) {
+                    height = (height * maxWidth) / width;
+                    width = maxWidth;
+                }
+                
+                // Create canvas and draw compressed image
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Convert to base64 with compression
+                const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+                console.log('Compressed image size:', Math.round(compressedBase64.length / 1024) + 'KB');
+                resolve(compressedBase64);
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
 }
 
 // ==================== POSTS ====================
@@ -804,9 +865,10 @@ async function createPost() {
 
         // Convert image to base64 if present
         if (imageFile) {
-            console.log('Converting image to base64...');
-            imageData = await convertImageToBase64(imageFile);
-            console.log('Image converted successfully');
+            console.log('Compressing and converting image...');
+            // Compress image before converting
+            imageData = await compressImage(imageFile, 800, 0.7);
+            console.log('Image compressed and converted successfully');
         }
 
         // Create post
@@ -841,12 +903,49 @@ async function createPost() {
     }
 }
 
-// Helper function to convert image to base64
-function convertImageToBase64(file) {
+// Helper function to convert image to base64 with compression
+function convertImageToBase64(file, maxWidth = 800, quality = 0.7) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target.result);
-        reader.onerror = (error) => reject(error);
+        
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                // Create canvas
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Calculate new dimensions
+                let width = img.width;
+                let height = img.height;
+                
+                if (width > maxWidth) {
+                    height = (height * maxWidth) / width;
+                    width = maxWidth;
+                }
+                
+                // Set canvas size
+                canvas.width = width;
+                canvas.height = height;
+                
+                // Draw image
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Convert to base64
+                const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+                
+                console.log('Image compressed:', {
+                    original: file.size,
+                    compressed: compressedBase64.length,
+                    reduction: ((1 - compressedBase64.length / file.size) * 100).toFixed(1) + '%'
+                });
+                
+                resolve(compressedBase64);
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+        };
+        reader.onerror = reject;
         reader.readAsDataURL(file);
     });
 }
@@ -1402,42 +1501,58 @@ window.uploadProfilePicture = async function() {
             return;
         }
         
-        if (file.size > 500 * 1024) { // 500KB limit for profile pics
-            showToast('Image is too large (max 500KB)', 'warning');
+        if (file.size > 1 * 1024 * 1024) { // 1MB original file limit
+            showToast('Original image is too large (max 1MB). Please resize it first.', 'warning');
             return;
         }
         
         try {
             showLoading();
             
-            const { db, auth } = window.firebaseServices;
+            const { db } = window.firebaseServices;
             
-            // Convert to base64
-            console.log('Converting profile picture to base64...');
-            const photoURL = await convertImageToBase64(file);
-            console.log('Profile picture converted');
+            // Convert to base64 with compression
+            console.log('Compressing profile picture...');
+            const photoURL = await compressImage(file, 400, 0.6); // Smaller for profile pics
             
-            // Update user document
+            // Check if base64 is too large (Firestore has limits)
+            if (photoURL.length > 1000000) { // ~1MB in base64
+                showToast('Image is still too large after compression. Try a smaller image.', 'warning');
+                hideLoading();
+                return;
+            }
+            
+            console.log('Profile picture converted, size:', Math.round(photoURL.length / 1024) + 'KB');
+            
+            // Update user document in Firestore ONLY (not Auth)
             await db.collection('users').doc(currentUser.id).update({
                 photoURL: photoURL
             });
-            
-            // Update auth profile
-            const user = auth.currentUser;
-            if (user) {
-                await user.updateProfile({ photoURL: photoURL });
-            }
             
             // Update local state
             currentUser.photoURL = photoURL;
             
             // Update UI - refresh all avatars
-            updateUserAvatars();
+            const navAvatar = document.getElementById('navUserAvatar');
+            const createAvatar = document.getElementById('createPostAvatar');
+            const profileAvatar = document.getElementById('profileAvatar');
             
-            // Reload profile if on profile page
-            const profileSection = document.getElementById('profileSection');
-            if (profileSection && profileSection.classList.contains('active')) {
-                loadProfile();
+            // Update avatars to show image
+            [navAvatar, createAvatar].forEach(avatar => {
+                if (avatar) {
+                    avatar.style.backgroundImage = `url(${photoURL})`;
+                    avatar.style.backgroundSize = 'cover';
+                    avatar.style.backgroundPosition = 'center';
+                    avatar.textContent = '';
+                }
+            });
+            
+            // Update profile avatar specially
+            if (profileAvatar) {
+                profileAvatar.style.backgroundImage = `url(${photoURL})`;
+                profileAvatar.style.backgroundSize = 'cover';
+                profileAvatar.style.backgroundPosition = 'center';
+                profileAvatar.textContent = '';
             }
             
             // Reload posts to update avatar in existing posts
@@ -1451,7 +1566,12 @@ window.uploadProfilePicture = async function() {
         } catch (error) {
             console.error('Error uploading profile picture:', error);
             hideLoading();
-            showToast('Error uploading picture: ' + error.message, 'error');
+            
+            if (error.code === 'auth/invalid-profile-attribute') {
+                showToast('Image is too large. Please use a smaller image (under 300KB).', 'error');
+            } else {
+                showToast('Error uploading picture: ' + error.message, 'error');
+            }
         }
     };
     
